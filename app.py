@@ -8,7 +8,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, date, time
 import repository as repo
 import utils as utils
 import predict_text as predict
@@ -36,10 +36,6 @@ if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 if 'username' not in st.session_state:
     st.session_state.username = ""
-if 'start_date' not in st.session_state:
-    st.session_state.start_date = date.today()
-if 'end_date' not in st.session_state:
-    st.session_state.end_date = date.today()
 
 # CSS untuk tema terang
 st.markdown("""
@@ -150,37 +146,40 @@ else:
     with col2:
         st.subheader("Filter Data")
         
-        # Gunakan form untuk filter data agar hanya diproses saat tombol Filter ditekan
+        # Gunakan form untuk filter data
         with st.form(key="filter_form"):
-            # Default tanggal awal ke 7 hari yang lalu
-            default_start_date = date.today() - timedelta(days=7)
-            start_date_input = st.date_input("Tanggal Awal", value=st.session_state.start_date, format="DD-MM-YYYY")
-            end_date_input = st.date_input("Tanggal Akhir", value=st.session_state.end_date, format="DD-MM-YYYY")
+            start_date_input = st.date_input("Tanggal Awal", value=date.today(), format="DD-MM-YYYY")
+            end_date_input = st.date_input("Tanggal Akhir", value=date.today(), format="DD-MM-YYYY")
             
             # Tombol untuk menerapkan filter
             filter_button = st.form_submit_button("Terapkan Filter")
             
-            if filter_button:
-                # Validasi tanggal
-                if start_date_input > end_date_input:
-                    st.error("Tanggal awal tidak boleh lebih besar dari tanggal akhir")
-                else:
-                    # Simpan tanggal di session state
-                    st.session_state.start_date = start_date_input
-                    st.session_state.end_date = end_date_input
-                    st.rerun()  # Reload halaman dengan filter baru
+            # Validasi tanggal hanya jika tombol filter ditekan
+            if filter_button and start_date_input > end_date_input:
+                st.error("Tanggal awal tidak boleh lebih besar dari tanggal akhir")
+                start_date_input = end_date_input
     
     # Convert to datetime with time
-    start_date = datetime.combine(st.session_state.start_date, time.min).isoformat()
-    end_date = datetime.combine(st.session_state.end_date, time.max).isoformat()
+    start_date = datetime.combine(start_date_input, time.min).isoformat()
+    end_date = datetime.combine(end_date_input, time.max).isoformat()
+    
+    # Debug: Tampilkan rentang tanggal yang digunakan untuk query
+    st.write(f"Debug - Rentang tanggal: {start_date} sampai {end_date}")
     
     # Dapatkan semua data feedback terlebih dahulu
     feedback_history = repo.get_feedback_history(start_date, end_date)
+    
+    # Debug: Tampilkan jumlah data yang ditemukan
+    st.write(f"Debug - Jumlah data: {len(feedback_history) if feedback_history else 0}")
     
     # Hitung jumlah untuk setiap kategori sentimen dari data yang ada
     if feedback_history:
         # Konversi ke DataFrame untuk memudahkan penghitungan
         df = pd.DataFrame(feedback_history)
+        
+        # Debug: Tampilkan data mentah
+        st.write("Debug - Data mentah:")
+        st.write(df)
         
         # Hitung jumlah untuk setiap kategori
         positive = len(df[df['prediction'] == 'positif'])
@@ -203,9 +202,6 @@ else:
         st.metric(label="Negatif", value=negative, delta=None, help="Negative feedback")
         st.markdown(f'<div style="background-color: #B71C1C; color: white; border-radius: 10px; padding: 5px; text-align: center; font-size: 20px;">Negatif</div>', unsafe_allow_html=True)
     
-    # Tampilkan informasi rentang tanggal yang aktif
-    st.info(f"Menampilkan data dari {st.session_state.start_date.strftime('%d-%m-%Y')} sampai {st.session_state.end_date.strftime('%d-%m-%Y')}")
-    
     # Tambahkan diagram pie
     st.subheader("Diagram Distribusi Sentimen")
     if positive + neutral + negative > 0:
@@ -226,7 +222,7 @@ else:
                 'Netral': '#F57F17',   # Kuning gelap
                 'Negatif': '#B71C1C'   # Merah gelap
             },
-            title=f'Distribusi Sentimen ({st.session_state.start_date.strftime("%d-%m-%Y")} s/d {st.session_state.end_date.strftime("%d-%m-%Y")})'
+            title=f'Distribusi Sentimen ({start_date_input.strftime("%d-%m-%Y")} s/d {end_date_input.strftime("%d-%m-%Y")})'
         )
         
         # Konfigurasi teks di dalam pie - ukuran lebih besar, warna putih, dan tidak miring
@@ -255,7 +251,7 @@ else:
         
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.warning(f"Tidak ada data untuk rentang tanggal {st.session_state.start_date.strftime('%d-%m-%Y')} sampai {st.session_state.end_date.strftime('%d-%m-%Y')}.")
+        st.warning(f"Tidak ada data untuk rentang tanggal {start_date_input.strftime('%d-%m-%Y')} sampai {end_date_input.strftime('%d-%m-%Y')}.")
     
     st.container(height=30, border=False)
     
@@ -265,4 +261,4 @@ else:
         data = utils.process_feedback_history(feedback_history)
         st.dataframe(data, use_container_width=True, hide_index=True, height=400)
     else:
-        st.warning(f"Tidak ada data untuk rentang tanggal {st.session_state.start_date.strftime('%d-%m-%Y')} sampai {st.session_state.end_date.strftime('%d-%m-%Y')}.")
+        st.warning(f"Tidak ada data untuk rentang tanggal {start_date_input.strftime('%d-%m-%Y')} sampai {end_date_input.strftime('%d-%m-%Y')}.")

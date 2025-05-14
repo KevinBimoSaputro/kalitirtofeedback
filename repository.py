@@ -15,9 +15,16 @@ def get_count_by_prediction(prediction, start_date, end_date):
     return data.count
 
 def get_feedback_history(start_date, end_date):
+    # Debug: Print parameter yang diterima
+    print(f"get_feedback_history called with: start_date={start_date}, end_date={end_date}")
+    
     data = db.select("feedback, prediction, created_at") \
         .gte("created_at", start_date) \
         .lte("created_at", end_date) \
         .order("created_at", desc=False) \
         .execute()
+    
+    # Debug: Print jumlah data yang ditemukan
+    print(f"get_feedback_history found {len(data.data)} records")
+    
     return data.data
