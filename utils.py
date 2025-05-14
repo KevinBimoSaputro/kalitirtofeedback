@@ -1,50 +1,13 @@
 import pandas as pd
 import streamlit as st
 import pytz
-import io
-
-def process_feedback_history(data):
-    df = pd.DataFrame(data)
-    
-    # Pastikan kolom created_at ada
-    if 'created_at' not in df.columns:
-        st.error("Kolom 'created_at' tidak ditemukan dalam data")
-        return df
-    
-    try:
-        # Coba konversi tanggal tanpa timezone
-        df['date'] = pd.to_datetime(df['created_at']).dt.strftime('%Y-%m-%d %H:%M:%S')
-    except Exception as e:
-        st.warning(f"Error saat konversi tanggal: {e}")
-        # Fallback: gunakan created_at apa adanya
-        df['date'] = df['created_at']
-    
-    # Hapus kolom created_at jika ada
-    if 'created_at' in df.columns:
-        df.drop(columns=['created_at'], inplace=True)
-    
-    # Tambahkan kolom nomor
-    df.insert(0, 'no', range(1, len(df) + 1))
-    
-    return df
-
-def convert_df_to_csv(df):
-    # IMPORTANT: Cache the conversion to prevent computation on every rerun
-    return df.to_csv(index=False).encode('utf-8')
+from datetime import datetime
 
 def set_markdown():
-    return st.markdown("""
+    return """
     <style>
         .stMetricValue-positif {
-            background-color: #4CAF50;
-            color: white;
-            border-radius: 10px;
-            padding: 5px;
-            text-align: center;
-            font-size: 20px;
-        }
-        .stMetricValue-negatif {
-            background-color: #F44336;
+            background-color: green;
             color: white;
             border-radius: 10px;
             padding: 5px;
@@ -52,16 +15,53 @@ def set_markdown():
             font-size: 20px;
         }
         .stMetricValue-netral {
-            background-color: #FFC107;
+            background-color: yellow;
             color: black;
             border-radius: 10px;
             padding: 5px;
             text-align: center;
             font-size: 20px;
         }
-        .stMetricLabel {
-            font-size: 16px;
-            font-weight: bold;
+        .stMetricValue-negatif {
+            background-color: red;
+            color: white;
+            border-radius: 10px;
+            padding: 5px;
+            text-align: center;
+            font-size: 20px;
         }
     </style>
-    """, unsafe_allow_html=True)
+    """
+
+def process_feedback_history(feedback_history):
+    try:
+        # Konversi ke DataFrame
+        df = pd.DataFrame(feedback_history)
+        
+        # Tambahkan kolom nomor
+        df.insert(0, 'no', range(1, len(df) + 1))
+        
+        # Konversi tanggal dengan penanganan error yang lebih baik
+        try:
+            # Coba konversi tanggal tanpa timezone
+            df['date'] = pd.to_datetime(df['created_at']).dt.strftime('%Y-%m-%d %H:%M:%S')
+        except Exception as e:
+            # Jika gagal, gunakan format yang lebih sederhana
+            try:
+                df['date'] = [datetime.fromisoformat(d.replace('Z', '+00:00')).strftime('%Y-%m-%d %H:%M:%S') for d in df['created_at']]
+            except Exception as e2:
+                # Fallback: gunakan created_at apa adanya
+                df['date'] = df['created_at']
+        
+        # Hapus kolom created_at
+        if 'created_at' in df.columns:
+            df = df.drop('created_at', axis=1)
+        
+        return df
+    except Exception as e:
+        st.error(f"Error in process_feedback_history: {e}")
+        # Fallback: kembalikan data asli
+        return pd.DataFrame(feedback_history)
+
+def convert_df_to_csv(df):
+    return df.to_csv(index=False).encode('utf-8')

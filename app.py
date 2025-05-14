@@ -8,7 +8,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 import repository as repo
 import utils as utils
 import predict_text as predict
@@ -36,6 +36,10 @@ if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 if 'username' not in st.session_state:
     st.session_state.username = ""
+if 'start_date' not in st.session_state:
+    st.session_state.start_date = date.today()
+if 'end_date' not in st.session_state:
+    st.session_state.end_date = date.today()
 
 # CSS untuk tema terang
 st.markdown("""
@@ -140,49 +144,37 @@ else:
     
     st.divider()
     
-    # Gunakan query parameter untuk filter
-    query_params = st.experimental_get_query_params()
-    
     col1, col2 = st.columns([3, 2])
     with col1:
         st.subheader("Statistik Sentimen")
     with col2:
         st.subheader("Filter Data")
         
-        # Ambil tanggal dari query parameter atau gunakan default
-        default_start = query_params.get("start_date", [date.today().strftime("%Y-%m-%d")])[0]
-        default_end = query_params.get("end_date", [date.today().strftime("%Y-%m-%d")])[0]
-        
-        try:
-            default_start_date = datetime.strptime(default_start, "%Y-%m-%d").date()
-            default_end_date = datetime.strptime(default_end, "%Y-%m-%d").date()
-        except ValueError:
-            default_start_date = date.today()
-            default_end_date = date.today()
-        
-        # Form untuk filter
-        with st.form("filter_form"):
-            start_date_input = st.date_input("Tanggal Awal", value=default_start_date, format="DD-MM-YYYY")
-            end_date_input = st.date_input("Tanggal Akhir", value=default_end_date, format="DD-MM-YYYY")
-            filter_submitted = st.form_submit_button("Terapkan Filter")
+        # Gunakan session state untuk menyimpan tanggal
+        with st.form(key="filter_form"):
+            start_date_input = st.date_input("Tanggal Awal", value=st.session_state.start_date, format="DD-MM-YYYY")
+            end_date_input = st.date_input("Tanggal Akhir", value=st.session_state.end_date, format="DD-MM-YYYY")
             
-            if filter_submitted:
-                # Update query parameter
-                st.experimental_set_query_params(
-                    start_date=start_date_input.strftime("%Y-%m-%d"),
-                    end_date=end_date_input.strftime("%Y-%m-%d")
-                )
-                st.rerun()
+            # Tombol untuk menerapkan filter
+            filter_button = st.form_submit_button("Terapkan Filter")
+            
+            if filter_button:
+                # Validasi tanggal
+                if start_date_input > end_date_input:
+                    st.error("Tanggal awal tidak boleh lebih besar dari tanggal akhir")
+                else:
+                    # Simpan tanggal di session state
+                    st.session_state.start_date = start_date_input
+                    st.session_state.end_date = end_date_input
+                    # Gunakan st.rerun() untuk memuat ulang halaman dengan filter baru
+                    st.rerun()
     
     # Convert to datetime with time
-    start_date = datetime.combine(start_date_input, time.min).isoformat()
-    end_date = datetime.combine(end_date_input, time.max).isoformat()
+    start_date = datetime.combine(st.session_state.start_date, time.min).isoformat()
+    end_date = datetime.combine(st.session_state.end_date, time.max).isoformat()
     
-    # Validasi tanggal
-    if start_date_input > end_date_input:
-        st.error("Tanggal awal tidak boleh lebih besar dari tanggal akhir")
-        start_date = datetime.combine(end_date_input, time.min).isoformat()
-        end_date = datetime.combine(end_date_input, time.max).isoformat()
+    # Tampilkan informasi filter yang aktif
+    st.info(f"Menampilkan data dari {st.session_state.start_date.strftime('%d-%m-%Y')} sampai {st.session_state.end_date.strftime('%d-%m-%Y')}")
     
     # Dapatkan data feedback
     try:
@@ -191,7 +183,7 @@ else:
         
         # Jika tidak ada data, tampilkan pesan
         if not feedback_history:
-            st.warning(f"Tidak ada data untuk rentang tanggal {start_date_input.strftime('%d-%m-%Y')} sampai {end_date_input.strftime('%d-%m-%Y')}.")
+            st.warning(f"Tidak ada data untuk rentang tanggal {st.session_state.start_date.strftime('%d-%m-%Y')} sampai {st.session_state.end_date.strftime('%d-%m-%Y')}.")
             feedback_history = []
     except Exception as e:
         # Jika terjadi error, tampilkan pesan dan gunakan data dummy
@@ -243,7 +235,7 @@ else:
                 'Netral': '#F57F17',   # Kuning gelap
                 'Negatif': '#B71C1C'   # Merah gelap
             },
-            title=f'Distribusi Sentimen ({start_date_input.strftime("%d-%m-%Y")} s/d {end_date_input.strftime("%d-%m-%Y")})'
+            title=f'Distribusi Sentimen ({st.session_state.start_date.strftime("%d-%m-%Y")} s/d {st.session_state.end_date.strftime("%d-%m-%Y")})'
         )
         
         # Konfigurasi teks di dalam pie - ukuran lebih besar, warna putih, dan tidak miring
@@ -272,7 +264,7 @@ else:
         
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.warning(f"Tidak ada data untuk rentang tanggal {start_date_input.strftime('%d-%m-%Y')} sampai {end_date_input.strftime('%d-%m-%Y')}.")
+        st.warning(f"Tidak ada data untuk rentang tanggal {st.session_state.start_date.strftime('%d-%m-%Y')} sampai {st.session_state.end_date.strftime('%d-%m-%Y')}.")
     
     st.container(height=30, border=False)
     
@@ -287,4 +279,4 @@ else:
             st.write("Data mentah:")
             st.write(feedback_history)
     else:
-        st.warning(f"Tidak ada data untuk rentang tanggal {start_date_input.strftime('%d-%m-%Y')} sampai {end_date_input.strftime('%d-%m-%Y')}.")
+        st.warning(f"Tidak ada data untuk rentang tanggal {st.session_state.start_date.strftime('%d-%m-%Y')} sampai {st.session_state.end_date.strftime('%d-%m-%Y')}.")
