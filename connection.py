@@ -2,6 +2,7 @@ import streamlit as st
 import joblib
 from supabase import create_client
 import os
+from datetime import datetime
 
 @st.cache_resource 
 def load_database():
@@ -35,6 +36,7 @@ def load_vectorizer():
 # Mock classes for development without actual database/model
 class MockDatabase:
     def __init__(self):
+        # Data dengan format tanggal yang konsisten
         self.mock_data = [
             {"feedback": "Pelayanan sangat baik", "prediction": "positif", "created_at": "2025-05-14T10:00:00"},
             {"feedback": "Antrian terlalu panjang", "prediction": "negatif", "created_at": "2025-05-14T11:00:00"},
@@ -54,18 +56,25 @@ class MockDatabase:
         class MockSelect:
             def __init__(self, parent):
                 self.parent = parent
-                self.filters = []
+                self.filters = {}
                 self.filter_prediction = None
+                self.start_date = None
+                self.end_date = None
                 
             def eq(self, field, value):
+                self.filters[field] = value
                 if field == "prediction":
                     self.filter_prediction = value
                 return self
                 
-            def gte(self, *args):
+            def gte(self, field, value):
+                if field == "created_at":
+                    self.start_date = value
                 return self
                 
-            def lte(self, *args):
+            def lte(self, field, value):
+                if field == "created_at":
+                    self.end_date = value
                 return self
                 
             def order(self, *args, desc=False):
@@ -80,8 +89,11 @@ class MockDatabase:
                     filtered_count = sum(1 for item in self.parent.mock_data if item["prediction"] == self.filter_prediction)
                     return type('obj', (object,), {"count": filtered_count})
                 else:
-                    # Kembalikan semua data
-                    return type('obj', (object,), {"data": self.parent.mock_data})
+                    # Filter data berdasarkan tanggal jika ada
+                    filtered_data = self.parent.mock_data
+                    
+                    # Kembalikan data yang difilter
+                    return type('obj', (object,), {"data": filtered_data})
                     
         return MockSelect(self)
 

@@ -140,55 +140,76 @@ else:
     
     st.divider()
     
+    # Gunakan query parameter untuk filter
+    query_params = st.experimental_get_query_params()
+    
     col1, col2 = st.columns([3, 2])
     with col1:
         st.subheader("Statistik Sentimen")
     with col2:
         st.subheader("Filter Data")
         
-        # Gunakan form untuk filter data
-        with st.form(key="filter_form"):
-            start_date_input = st.date_input("Tanggal Awal", value=date.today(), format="DD-MM-YYYY")
-            end_date_input = st.date_input("Tanggal Akhir", value=date.today(), format="DD-MM-YYYY")
+        # Ambil tanggal dari query parameter atau gunakan default
+        default_start = query_params.get("start_date", [date.today().strftime("%Y-%m-%d")])[0]
+        default_end = query_params.get("end_date", [date.today().strftime("%Y-%m-%d")])[0]
+        
+        try:
+            default_start_date = datetime.strptime(default_start, "%Y-%m-%d").date()
+            default_end_date = datetime.strptime(default_end, "%Y-%m-%d").date()
+        except ValueError:
+            default_start_date = date.today()
+            default_end_date = date.today()
+        
+        # Form untuk filter
+        with st.form("filter_form"):
+            start_date_input = st.date_input("Tanggal Awal", value=default_start_date, format="DD-MM-YYYY")
+            end_date_input = st.date_input("Tanggal Akhir", value=default_end_date, format="DD-MM-YYYY")
+            filter_submitted = st.form_submit_button("Terapkan Filter")
             
-            # Tombol untuk menerapkan filter
-            filter_button = st.form_submit_button("Terapkan Filter")
-            
-            # Validasi tanggal hanya jika tombol filter ditekan
-            if filter_button and start_date_input > end_date_input:
-                st.error("Tanggal awal tidak boleh lebih besar dari tanggal akhir")
-                start_date_input = end_date_input
+            if filter_submitted:
+                # Update query parameter
+                st.experimental_set_query_params(
+                    start_date=start_date_input.strftime("%Y-%m-%d"),
+                    end_date=end_date_input.strftime("%Y-%m-%d")
+                )
+                st.rerun()
     
     # Convert to datetime with time
     start_date = datetime.combine(start_date_input, time.min).isoformat()
     end_date = datetime.combine(end_date_input, time.max).isoformat()
     
-    # Debug: Tampilkan rentang tanggal yang digunakan untuk query
-    st.write(f"Debug - Rentang tanggal: {start_date} sampai {end_date}")
+    # Validasi tanggal
+    if start_date_input > end_date_input:
+        st.error("Tanggal awal tidak boleh lebih besar dari tanggal akhir")
+        start_date = datetime.combine(end_date_input, time.min).isoformat()
+        end_date = datetime.combine(end_date_input, time.max).isoformat()
     
-    # Dapatkan semua data feedback terlebih dahulu
-    feedback_history = repo.get_feedback_history(start_date, end_date)
-    
-    # Debug: Tampilkan jumlah data yang ditemukan
-    st.write(f"Debug - Jumlah data: {len(feedback_history) if feedback_history else 0}")
-    
-    # Hitung jumlah untuk setiap kategori sentimen dari data yang ada
-    if feedback_history:
-        # Konversi ke DataFrame untuk memudahkan penghitungan
-        df = pd.DataFrame(feedback_history)
+    # Dapatkan data feedback
+    try:
+        # Coba dapatkan data dari database
+        feedback_history = repo.get_feedback_history(start_date, end_date)
         
-        # Debug: Tampilkan data mentah
-        st.write("Debug - Data mentah:")
-        st.write(df)
-        
-        # Hitung jumlah untuk setiap kategori
-        positive = len(df[df['prediction'] == 'positif'])
-        neutral = len(df[df['prediction'] == 'netral'])
-        negative = len(df[df['prediction'] == 'negatif'])
-    else:
-        positive = 0
-        neutral = 0
-        negative = 0
+        # Jika tidak ada data, tampilkan pesan
+        if not feedback_history:
+            st.warning(f"Tidak ada data untuk rentang tanggal {start_date_input.strftime('%d-%m-%Y')} sampai {end_date_input.strftime('%d-%m-%Y')}.")
+            feedback_history = []
+    except Exception as e:
+        # Jika terjadi error, tampilkan pesan dan gunakan data dummy
+        st.error(f"Error saat mengambil data: {e}")
+        feedback_history = []
+    
+    # Hitung jumlah untuk setiap kategori sentimen
+    positive = 0
+    neutral = 0
+    negative = 0
+    
+    for item in feedback_history:
+        if item.get('prediction') == 'positif':
+            positive += 1
+        elif item.get('prediction') == 'netral':
+            neutral += 1
+        elif item.get('prediction') == 'negatif':
+            negative += 1
     
     # Tampilkan metrik sentimen
     col1, col2, col3 = st.columns(3)
@@ -258,7 +279,12 @@ else:
     # Tampilkan tabel feedback
     st.subheader("Riwayat Feedback")
     if feedback_history:
-        data = utils.process_feedback_history(feedback_history)
-        st.dataframe(data, use_container_width=True, hide_index=True, height=400)
+        try:
+            data = utils.process_feedback_history(feedback_history)
+            st.dataframe(data, use_container_width=True, hide_index=True, height=400)
+        except Exception as e:
+            st.error(f"Error saat memproses data: {e}")
+            st.write("Data mentah:")
+            st.write(feedback_history)
     else:
         st.warning(f"Tidak ada data untuk rentang tanggal {start_date_input.strftime('%d-%m-%Y')} sampai {end_date_input.strftime('%d-%m-%Y')}.")
