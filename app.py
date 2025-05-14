@@ -69,31 +69,6 @@ st.markdown("""
     p {
         margin-bottom: 0.5rem;
     }
-    /* Styling untuk metrik sentimen */
-    .stMetricValue-positif {
-        background-color: #4CAF50;
-        color: white;
-        border-radius: 10px;
-        padding: 5px;
-        text-align: center;
-        font-size: 20px;
-    }
-    .stMetricValue-netral {
-        background-color: #FFC107;
-        color: black;
-        border-radius: 10px;
-        padding: 5px;
-        text-align: center;
-        font-size: 20px;
-    }
-    .stMetricValue-negatif {
-        background-color: #F44336;
-        color: white;
-        border-radius: 10px;
-        padding: 5px;
-        text-align: center;
-        font-size: 20px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -183,20 +158,34 @@ else:
             start_date = datetime.combine(end_date_input, time.min).isoformat()
             end_date = datetime.combine(end_date_input, time.max).isoformat()
     
-    positive = repo.get_count_by_prediction("positif", start_date, end_date)
-    neutral = repo.get_count_by_prediction("netral", start_date, end_date)
-    negative = repo.get_count_by_prediction("negatif", start_date, end_date)
+    # Dapatkan semua data feedback terlebih dahulu
+    feedback_history = repo.get_feedback_history(start_date, end_date)
     
+    # Hitung jumlah untuk setiap kategori sentimen dari data yang ada
+    if feedback_history:
+        # Konversi ke DataFrame untuk memudahkan penghitungan
+        df = pd.DataFrame(feedback_history)
+        
+        # Hitung jumlah untuk setiap kategori
+        positive = len(df[df['prediction'] == 'positif'])
+        neutral = len(df[df['prediction'] == 'netral'])
+        negative = len(df[df['prediction'] == 'negatif'])
+    else:
+        positive = 0
+        neutral = 0
+        negative = 0
+    
+    # Tampilkan metrik sentimen
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric(label="Positif", value=positive, delta=None, help="Positive feedback")
-        st.markdown('<div class="stMetricValue-positif"></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background-color: #1B5E20; color: white; border-radius: 10px; padding: 5px; text-align: center; font-size: 20px;">Positif</div>', unsafe_allow_html=True)
     with col2:  
         st.metric(label="Netral", value=neutral, delta=None, help="Netral feedback")
-        st.markdown('<div class="stMetricValue-netral"></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background-color: #F57F17; color: white; border-radius: 10px; padding: 5px; text-align: center; font-size: 20px;">Netral</div>', unsafe_allow_html=True)
     with col3:
         st.metric(label="Negatif", value=negative, delta=None, help="Negative feedback")
-        st.markdown('<div class="stMetricValue-negatif"></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background-color: #B71C1C; color: white; border-radius: 10px; padding: 5px; text-align: center; font-size: 20px;">Negatif</div>', unsafe_allow_html=True)
     
     # Tambahkan diagram pie
     st.subheader("Diagram Distribusi Sentimen")
@@ -253,7 +242,6 @@ else:
     
     # Tampilkan tabel feedback
     st.subheader("Riwayat Feedback")
-    feedback_history = repo.get_feedback_history(start_date, end_date)
     if feedback_history:
         data = utils.process_feedback_history(feedback_history)
         st.dataframe(data, use_container_width=True, hide_index=True, height=400)
