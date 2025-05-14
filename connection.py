@@ -34,6 +34,15 @@ def load_vectorizer():
 
 # Mock classes for development without actual database/model
 class MockDatabase:
+    def __init__(self):
+        self.mock_data = [
+            {"feedback": "Pelayanan sangat baik", "prediction": "positif", "created_at": "2025-05-14T10:00:00"},
+            {"feedback": "Antrian terlalu panjang", "prediction": "negatif", "created_at": "2025-05-14T11:00:00"},
+            {"feedback": "Cukup memuaskan", "prediction": "netral", "created_at": "2025-05-14T12:00:00"},
+            {"feedback": "Petugas ramah", "prediction": "positif", "created_at": "2025-05-14T13:00:00"},
+            {"feedback": "Ruang tunggu nyaman", "prediction": "positif", "created_at": "2025-05-14T14:00:00"}
+        ]
+    
     def insert(self, data):
         class MockInsert:
             def execute(self):
@@ -43,30 +52,38 @@ class MockDatabase:
     
     def select(self, *args, count=None):
         class MockSelect:
-            def eq(self, *args):
+            def __init__(self, parent):
+                self.parent = parent
+                self.filters = []
+                self.filter_prediction = None
+                
+            def eq(self, field, value):
+                if field == "prediction":
+                    self.filter_prediction = value
                 return self
+                
             def gte(self, *args):
                 return self
+                
             def lte(self, *args):
                 return self
+                
             def order(self, *args, desc=False):
                 return self
+                
             def limit(self, *args):
                 return self
+                
             def execute(self):
-                # Return mock data
-                mock_data = {
-                    "count": 5,
-                    "data": [
-                        {"feedback": "Pelayanan sangat baik", "prediction": "positif", "created_at": "2025-05-14T10:00:00"},
-                        {"feedback": "Antrian terlalu panjang", "prediction": "negatif", "created_at": "2025-05-14T11:00:00"},
-                        {"feedback": "Cukup memuaskan", "prediction": "netral", "created_at": "2025-05-14T12:00:00"},
-                        {"feedback": "Petugas ramah", "prediction": "positif", "created_at": "2025-05-14T13:00:00"},
-                        {"feedback": "Ruang tunggu nyaman", "prediction": "positif", "created_at": "2025-05-14T14:00:00"}
-                    ]
-                }
-                return type('obj', (object,), mock_data)
-        return MockSelect()
+                if count == "exact" and self.filter_prediction:
+                    # Hitung jumlah data untuk prediksi tertentu
+                    filtered_count = sum(1 for item in self.parent.mock_data if item["prediction"] == self.filter_prediction)
+                    return type('obj', (object,), {"count": filtered_count})
+                else:
+                    # Kembalikan semua data
+                    return type('obj', (object,), {"data": self.parent.mock_data})
+                    
+        return MockSelect(self)
 
 class MockModel:
     def predict(self, text):
